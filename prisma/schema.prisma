@@ -1,0 +1,224 @@
+// Jastram Engineering – Project Management Tool
+// Prisma schema for PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum ProjectStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneType {
+  KICK_OFF  // Engineering Kick-Off Meeting
+  PDR       // Preliminary Design Review
+  FDR       // Final Design Review
+}
+
+enum MilestoneStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliverableType {
+  LONG_LEAD            // Long lead info to purchasing
+  PICKLIST             // Scope of supply / picklist to production
+  PROD_RELEASE         // Production info release (custom parts: drawings, BOM)
+  SYS_DESIGN_CUSTOMER  // System design drawing released to customer
+  CLASS_SUBMIT         // Submit drawings/calculations to class society
+  FAT                  // Class society inspection/test (FAT)
+  MANUAL               // System manual completion
+  SHIPPING             // Shipping date
+}
+
+enum DeliverableStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  COMPLETED
+  ON_HOLD
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+// ─────────────────────────────────────────────
+// Project
+// ─────────────────────────────────────────────
+
+model Project {
+  id                 String            @id @default(cuid())
+  projectNumber      String            @unique
+  clientName         String
+  shipType           String
+  classSociety       String
+  projectManagerName String
+  plannedDeliveryDate DateTime?
+  status             ProjectStatus     @default(NOT_STARTED)
+  description        String?
+  generalNotes       String?           // e.g. on hold, waiting for info, blockers
+
+  milestones         Milestone[]
+  deliverables       ProjectDeliverable[]
+  tasks              Task[]
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Milestone (the 3 engineering review meetings)
+// Auto-created (KICK_OFF, PDR, FDR) when a project is created.
+// Placement relative to deliverables is fluid per project.
+// ─────────────────────────────────────────────
+
+model Milestone {
+  id        String          @id @default(cuid())
+  projectId String
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type      MilestoneType
+  dueDate   DateTime?
+  status    MilestoneStatus @default(SCHEDULED)
+  notes     String?         // project-specific notes
+
+  reminders ReminderLog[]
+
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([projectId, type])
+}
+
+// ─────────────────────────────────────────────
+// ProjectDeliverable (the 8 standard tracking steps)
+// Auto-created for each project on creation.
+// ─────────────────────────────────────────────
+
+model ProjectDeliverable {
+  id        String            @id @default(cuid())
+  projectId String
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  type      DeliverableType
+  dueDate   DateTime?
+  status    DeliverableStatus @default(NOT_STARTED)
+  notes     String?
+
+  reminders ReminderLog[]
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([projectId, type])
+}
+
+// ─────────────────────────────────────────────
+// Task (Kanban cards within a project)
+// ─────────────────────────────────────────────
+
+model Task {
+  id             String       @id @default(cuid())
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  title          String
+  description    String?
+  status         TaskStatus   @default(TODO)
+  orderIndex     Int          @default(0)   // position within Kanban column
+  dueAt          DateTime?
+  estimatedHours Decimal?     @db.Decimal(6, 2)
+  specJson       String?      // imperial unit specs: {"torque_lb_ft": 120, "length_in": 24}
+
+  assignments    TaskAssignment[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// TeamMember
+// ─────────────────────────────────────────────
+
+model TeamMember {
+  id                   String           @id @default(cuid())
+  name                 String
+  capacityHoursPerWeek Decimal          @default(40) @db.Decimal(5, 2)
+
+  assignments          TaskAssignment[]
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// TaskAssignment — links tasks to team members
+// ─────────────────────────────────────────────
+
+model TaskAssignment {
+  id             String     @id @default(cuid())
+  taskId         String
+  task           Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  teamMemberId   String
+  teamMember     TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  allocatedHours Decimal?   @db.Decimal(6, 2)
+
+  createdAt      DateTime   @default(now())
+
+  @@unique([taskId, teamMemberId])
+}
+
+// ─────────────────────────────────────────────
+// Notification — in-app alerts (bell icon)
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // e.g. "deadline_reminder"
+  title     String
+  body      String
+  link      String?  // URL to navigate to on click
+  read      Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// ReminderLog — prevents duplicate email/in-app sends
+// Either milestoneId or projectDeliverableId is set (not both).
+// ─────────────────────────────────────────────
+
+model ReminderLog {
+  id                   String              @id @default(cuid())
+  milestoneId          String?
+  milestone            Milestone?          @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  projectDeliverableId String?
+  projectDeliverable   ProjectDeliverable? @relation(fields: [projectDeliverableId], references: [id], onDelete: Cascade)
+
+  reminderWindow       String              // e.g. "7d", "1d", "0d"
+  channel              String              // "email" | "in_app"
+
+  sentAt               DateTime            @default(now())
+
+  @@unique([milestoneId, reminderWindow, channel])
+  @@unique([projectDeliverableId, reminderWindow, channel])
+}
