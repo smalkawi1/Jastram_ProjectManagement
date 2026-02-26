@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* Marine / Jastram brand palette */
+  --color-navy-950: #0a1628;
+  --color-navy-900: #0d1f3c;
+  --color-navy-800: #122a52;
+  --color-navy-700: #1a3a6e;
+  --color-navy-600: #1e4080;
+  --color-navy-500: #2453a0;
+  --color-navy-400: #3b6bbf;
+  --color-steel-400: #6b8cba;
+  --color-steel-300: #94afd4;
+  --color-steel-200: #bfd0e8;
+  --color-steel-100: #e0eaf5;
+  --color-steel-50:  #f0f5fb;
+
+  /* Status colours */
+  --color-status-overdue-bg:    #fef2f2;
+  --color-status-overdue-text:  #dc2626;
+  --color-status-overdue-border:#fca5a5;
+  --color-status-warn-bg:       #fffbeb;
+  --color-status-warn-text:     #d97706;
+  --color-status-warn-border:   #fcd34d;
+  --color-status-ok-bg:         #f0fdf4;
+  --color-status-ok-text:       #16a34a;
+  --color-status-ok-border:     #86efac;
+  --color-status-done-bg:       #f9fafb;
+  --color-status-done-text:     #6b7280;
+  --color-status-done-border:   #d1d5db;
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background-color: var(--color-steel-50);
+  color: #1e293b;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* Sidebar scrollbar */
+.sidebar-scroll::-webkit-scrollbar { width: 4px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: var(--color-navy-700); border-radius: 2px; }
