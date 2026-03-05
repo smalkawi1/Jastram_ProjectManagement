@@ -69,9 +69,9 @@ async function main() {
     });
 
     const admin = await prisma.user.upsert({
-      where: { authId: adminAuthId },
+      where: { email: adminEmail },
       update: {
-        email: adminEmail,
+        authId: adminAuthId,
         role: "ADMIN",
         departmentId: engineeringDept?.id ?? null,
       },
@@ -99,9 +99,9 @@ async function main() {
       : await prisma.department.findUnique({ where: { name: "Engineering" } });
 
     const testUser = await prisma.user.upsert({
-      where: { authId: testAuthId },
+      where: { email: testEmail },
       update: {
-        email: testEmail,
+        authId: testAuthId,
         name: process.env.SEED_TEST_USER_NAME ?? null,
         role: validRole,
         departmentId: dept?.id ?? null,
