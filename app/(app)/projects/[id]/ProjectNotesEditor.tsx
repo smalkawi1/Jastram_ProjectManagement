@@ -6,9 +6,11 @@ import { PencilSquareIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outl
 export default function ProjectNotesEditor({
   projectId,
   initialNotes,
+  canEdit = true,
 }: {
   projectId: string;
   initialNotes: string;
+  canEdit?: boolean;
 }) {
   const [notes, setNotes] = useState(initialNotes);
   const [editing, setEditing] = useState(false);
@@ -31,6 +33,11 @@ export default function ProjectNotesEditor({
   }
 
   if (!notes && !editing) {
+    if (!canEdit) {
+      return (
+        <p className="text-xs text-gray-400 px-1">No general notes.</p>
+      );
+    }
     return (
       <button
         onClick={() => { setEditing(true); setDraft(""); }}
@@ -42,7 +49,7 @@ export default function ProjectNotesEditor({
     );
   }
 
-  if (editing) {
+  if (editing && canEdit) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <p className="text-xs font-semibold text-amber-800 mb-2">📌 General Notes</p>
@@ -81,12 +88,14 @@ export default function ProjectNotesEditor({
         <p className="text-xs font-semibold text-amber-800 mb-1">📌 General Notes</p>
         <p className="text-sm text-amber-900 whitespace-pre-wrap">{notes}</p>
       </div>
-      <button
-        onClick={() => { setEditing(true); setDraft(notes); }}
-        className="shrink-0 p-1.5 rounded hover:bg-amber-100 text-amber-500 hover:text-amber-700 transition-colors"
-      >
-        <PencilSquareIcon className="w-4 h-4" />
-      </button>
+      {canEdit && (
+        <button
+          onClick={() => { setEditing(true); setDraft(notes); }}
+          className="shrink-0 p-1.5 rounded hover:bg-amber-100 text-amber-500 hover:text-amber-700 transition-colors"
+        >
+          <PencilSquareIcon className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }

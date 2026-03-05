@@ -9,10 +9,16 @@ import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
+  PencilSquareIcon,
+  TrashIcon,
 } from "@heroicons/react/24/outline";
+import { getCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import IssueLogSection from "./IssueLogSection";
 import DeliverableRow from "./DeliverableRow";
 import MilestoneRow from "./MilestoneRow";
 import ProjectNotesEditor from "./ProjectNotesEditor";
+import ProjectDetailActions from "./ProjectDetailActions";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +36,26 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const project = await prisma.project.findUnique({
-    where: { id },
-    include: {
-      milestones:   { orderBy: { type: "asc" } },
-      deliverables: { orderBy: { type: "asc" } },
-      tasks:        { orderBy: [{ status: "asc" }, { orderIndex: "asc" }] },
-    },
-  });
+  const [project, user, assignees] = await Promise.all([
+    prisma.project.findUnique({
+      where: { id },
+      include: {
+        milestones:   { orderBy: { type: "asc" } },
+        deliverables: { orderBy: { type: "asc" } },
+        tasks:        { orderBy: [{ status: "asc" }, { orderIndex: "asc" }] },
+        salesOrders:  { orderBy: { salesOrderNumber: "asc" } },
+      },
+    }),
+    getCurrentUser(),
+    prisma.user.findMany({
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      select: { id: true, name: true, email: true },
+    }),
+  ]);
   if (!project) notFound();
+
+  const canEdit = user ? can.editProject(user.role) : false;
+  const canDelete = user ? can.deleteProject(user.role) : false;
 
   const sortedDeliverables = DELIVERABLE_ORDER.map(
     (type) => project.deliverables.find((d) => d.type === type)!
@@ -51,6 +68,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const deliveryStatus = getDateStatus(project.plannedDeliveryDate, project.status === "COMPLETED");
   const dsc = STATUS_CLASSES[deliveryStatus];
+
+  const assigneeOptions = assignees.map((u) => ({
+    id: u.id,
+    name: u.name || u.email,
+    email: u.email,
+  }));
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -72,6 +95,17 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <p className="text-sm text-gray-500 mt-0.5">
             {project.shipType} · {project.classSociety} · PM: {project.projectManagerName}
           </p>
+          {(project.hullNumbers?.length > 0 || project.salesOrders?.length > 0) && (
+            <p className="text-xs text-gray-500 mt-1">
+              {project.hullNumbers?.length > 0 && (
+                <span>Hull(s): {project.hullNumbers.join(", ")}</span>
+              )}
+              {project.hullNumbers?.length > 0 && project.salesOrders?.length > 0 && " · "}
+              {project.salesOrders?.length > 0 && (
+                <span>Sales order(s): {project.salesOrders.map((s) => s.salesOrderNumber).join(", ")}</span>
+              )}
+            </p>
+          )}
         </div>
         {/* Delivery date */}
         {project.plannedDeliveryDate && (
@@ -85,10 +119,21 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             </span>
           </div>
         )}
+        {(canEdit || canDelete) && (
+          <ProjectDetailActions projectId={project.id} canEdit={canEdit} canDelete={canDelete} />
+        )}
       </div>
 
       {/* General notes */}
-      <ProjectNotesEditor projectId={project.id} initialNotes={project.generalNotes ?? ""} />
+      <ProjectNotesEditor projectId={project.id} initialNotes={project.generalNotes ?? ""} canEdit={canEdit} />
+
+      {/* ── Issue log ── */}
+      <IssueLogSection
+        projectId={project.id}
+        initialIssues={[]}
+        assignees={assigneeOptions}
+        canEdit={canEdit}
+      />
 
       {/* ── Deliverables ── */}
       <section className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -107,6 +152,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 template={tmpl}
                 status={ds}
                 stepNumber={i + 1}
+                canEdit={canEdit}
               />
             );
           })}
@@ -129,6 +175,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 milestone={m}
                 template={tmpl}
                 status={ms}
+                canEdit={canEdit}
               />
             );
           })}

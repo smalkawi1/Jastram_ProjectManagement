@@ -21,6 +21,8 @@ export default function NewProjectPage() {
     plannedDeliveryDate:"",
     description:        "",
     generalNotes:       "",
+    hullNumbers:        "",
+    salesOrderNumbers:  "",
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
@@ -33,14 +35,29 @@ export default function NewProjectPage() {
     setSaving(true);
     setError("");
     try {
+      const hullList = form.hullNumbers
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const orderList = form.salesOrderNumbers
+        .split(/[\s,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const payload = {
+        ...form,
+        hullNumbers: hullList.length ? hullList : undefined,
+        salesOrderNumbers: orderList.length ? orderList : undefined,
+      };
+
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to create project");
+        const data = await res.json().catch(() => ({}));
+        const message = data.details ?? data.error ?? "Failed to create project";
+        throw new Error(message);
       }
       const project = await res.json();
       router.push(`/projects/${project.id}`);
@@ -131,6 +148,34 @@ export default function NewProjectPage() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Hull numbers <span className="text-gray-400 font-normal">(optional, comma-separated)</span>
+            </label>
+            <input
+              name="hullNumbers"
+              value={form.hullNumbers}
+              onChange={handleChange}
+              placeholder="e.g. H001, H002 or multiple hulls"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Sales order number(s) <span className="text-gray-400 font-normal">(optional, comma-separated)</span>
+            </label>
+            <input
+              name="salesOrderNumbers"
+              value={form.salesOrderNumbers}
+              onChange={handleChange}
+              placeholder="e.g. SO-12345, SO-12346"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
+            />
           </div>
         </div>
 

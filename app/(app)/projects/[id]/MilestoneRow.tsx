@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { getDateStatus, STATUS_CLASSES, statusLabel } from "@/lib/date-status";
-import type { DeliverableTemplate } from "@/lib/deliverable-templates";
+import type { MilestoneTemplate } from "@/lib/milestone-templates";
 import type { DateStatus } from "@/lib/date-status";
 import {
   ChevronDownIcon,
@@ -11,9 +11,10 @@ import {
   PencilSquareIcon,
   CheckIcon,
   XMarkIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 
-type Deliverable = {
+type Milestone = {
   id: string;
   type: string;
   dueDate: Date | null;
@@ -21,48 +22,49 @@ type Deliverable = {
   notes: string | null;
 };
 
-const STATUSES = ["NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "COMPLETED", "ON_HOLD"];
+const STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED"];
 const STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Not Started", IN_PROGRESS: "In Progress",
-  SUBMITTED: "Submitted", COMPLETED: "Completed", ON_HOLD: "On Hold",
+  SCHEDULED: "Scheduled", COMPLETED: "Completed", CANCELLED: "Cancelled",
 };
 
-export default function DeliverableRow({
-  deliverable,
+const TYPE_COLORS: Record<string, string> = {
+  KICK_OFF: "bg-[#1a3a6e] text-white",
+  PDR:      "bg-[#2453a0] text-white",
+  FDR:      "bg-[#3b6bbf] text-white",
+};
+
+export default function MilestoneRow({
+  milestone,
   template,
   status,
-  stepNumber,
+  canEdit = true,
 }: {
-  deliverable: Deliverable;
-  template: DeliverableTemplate;
+  milestone: Milestone;
+  template: MilestoneTemplate;
   status: DateStatus;
-  stepNumber: number;
+  canEdit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [dueDate, setDueDate] = useState(
-    deliverable.dueDate ? format(new Date(deliverable.dueDate), "yyyy-MM-dd") : ""
+    milestone.dueDate ? format(new Date(milestone.dueDate), "yyyy-MM-dd") : ""
   );
-  const [delStatus, setDelStatus] = useState(deliverable.status);
-  const [notes, setNotes] = useState(deliverable.notes ?? "");
+  const [milStatus, setMilStatus] = useState(milestone.status);
+  const [notes, setNotes] = useState(milestone.notes ?? "");
   const [currentStatus, setCurrentStatus] = useState(status);
-  const [currentDueDate, setCurrentDueDate] = useState(deliverable.dueDate);
+  const [currentDueDate, setCurrentDueDate] = useState(milestone.dueDate);
 
   const sc = STATUS_CLASSES[currentStatus];
 
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/deliverables/${deliverable.id}`, {
+      const res = await fetch(`/api/milestones/${milestone.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dueDate: dueDate || null,
-          status:  delStatus,
-          notes:   notes || null,
-        }),
+        body: JSON.stringify({ dueDate: dueDate || null, status: milStatus, notes: notes || null }),
       });
       if (res.ok) {
         const updated = await res.json();
@@ -81,9 +83,9 @@ export default function DeliverableRow({
         className="flex items-center gap-3 px-5 py-3.5 cursor-pointer select-none hover:bg-gray-50"
         onClick={() => !editing && setOpen((o) => !o)}
       >
-        {/* Step number */}
-        <span className="w-6 h-6 rounded-full bg-[#e0eaf5] text-[#1a3a6e] text-xs font-bold flex items-center justify-center shrink-0">
-          {stepNumber}
+        {/* Type badge */}
+        <span className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${TYPE_COLORS[milestone.type]}`}>
+          {template.shortLabel}
         </span>
 
         {/* Chevron */}
@@ -96,7 +98,7 @@ export default function DeliverableRow({
 
         {/* Status pill */}
         <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full border ${sc.badge}`}>
-          {STATUS_LABEL[delStatus] ?? delStatus}
+          {STATUS_LABEL[milStatus] ?? milStatus}
         </span>
 
         {/* Due date */}
@@ -116,27 +118,78 @@ export default function DeliverableRow({
         </div>
 
         {/* Edit button */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setEditing(true); setOpen(true); }}
-          className="shrink-0 p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#2453a0] transition-colors"
-        >
-          <PencilSquareIcon className="w-4 h-4" />
-        </button>
+        {canEdit && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditing(true); setOpen(true); }}
+            className="shrink-0 p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#2453a0] transition-colors"
+          >
+            <PencilSquareIcon className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Expanded content */}
+      {/* Expanded */}
       {open && (
         <div className="px-5 pb-4 pt-0 bg-gray-50 border-t border-gray-100">
-          <p className="text-xs text-gray-500 mt-3 mb-3">{template.description}</p>
-          {template.notes && (
-            <p className="text-xs text-[#6b8cba] italic mb-3">Note: {template.notes}</p>
+          <p className="text-xs text-gray-500 mt-3 mb-2">{template.purpose}</p>
+          <p className="text-xs text-[#6b8cba] italic mb-3">Timing: {template.timing}</p>
+
+          {/* Participants */}
+          {template.participants && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 flex items-center gap-1 mb-1">
+                <UserGroupIcon className="w-3.5 h-3.5" /> Participants
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {template.participants.map((p) => (
+                  <span key={p} className="text-xs bg-[#e0eaf5] text-[#1a3a6e] px-2 py-0.5 rounded-full">{p}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agenda / Requirements */}
+          {(template.agenda || template.requirements) && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 mb-1">
+                {template.agenda ? "Agenda" : "Requirements"}
+              </p>
+              <ul className="space-y-0.5">
+                {(template.agenda ?? template.requirements ?? []).map((item) => (
+                  <li key={item} className="text-xs text-gray-500 flex gap-1.5">
+                    <span className="text-[#94afd4] mt-0.5">•</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Outputs */}
+          <div className="mb-3">
+            <p className="text-xs font-medium text-gray-600 mb-1">Outputs</p>
+            <ul className="space-y-0.5">
+              {template.outputs.map((item) => (
+                <li key={item} className="text-xs text-gray-500 flex gap-1.5">
+                  <span className="text-green-400 mt-0.5">✓</span>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Risk note */}
+          {template.riskNote && (
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-3">
+              ⚠ {template.riskNote}
+            </div>
           )}
 
           {editing ? (
-            <div className="space-y-3">
+            <div className="space-y-3 mt-3 pt-3 border-t border-gray-200">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Due Date</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Meeting Date</label>
                   <input
                     type="date"
                     value={dueDate}
@@ -147,8 +200,8 @@ export default function DeliverableRow({
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
                   <select
-                    value={delStatus}
-                    onChange={(e) => setDelStatus(e.target.value)}
+                    value={milStatus}
+                    onChange={(e) => setMilStatus(e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#2453a0]"
                   >
                     {STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
@@ -183,7 +236,7 @@ export default function DeliverableRow({
               </div>
             </div>
           ) : (
-            notes && <p className="text-xs text-gray-600 bg-white border border-gray-200 rounded px-3 py-2">{notes}</p>
+            notes && <p className="text-xs text-gray-600 bg-white border border-gray-200 rounded px-3 py-2 mt-2">{notes}</p>
           )}
         </div>
       )}

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -10,6 +12,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
         milestones:   { orderBy: { type: "asc" } },
         deliverables: { orderBy: { type: "asc" } },
         tasks:        { orderBy: [{ status: "asc" }, { orderIndex: "asc" }] },
+        salesOrders:  { orderBy: { createdAt: "asc" } },
       },
     });
     if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -21,24 +24,58 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+  if (!can.editProject(user.role)) return forbidden();
+
   try {
     const { id } = await params;
     const body = await req.json();
 
-    const updated = await prisma.project.update({
-      where: { id },
-      data: {
-        projectNumber:      body.projectNumber,
-        clientName:         body.clientName,
-        shipType:           body.shipType,
-        classSociety:       body.classSociety,
-        projectManagerName: body.projectManagerName,
-        plannedDeliveryDate: body.plannedDeliveryDate ? new Date(body.plannedDeliveryDate) : undefined,
-        description:        body.description,
-        generalNotes:       body.generalNotes,
-        status:             body.status,
-      },
-    });
+    const deliveryDate =
+      body.plannedDeliveryDate !== undefined
+        ? body.plannedDeliveryDate
+          ? new Date(body.plannedDeliveryDate)
+          : null
+        : undefined;
+
+    const hullList =
+      body.hullNumbers !== undefined
+        ? (Array.isArray(body.hullNumbers)
+            ? body.hullNumbers.filter((h: unknown) => typeof h === "string").map((h: string) => h.trim()).filter(Boolean)
+            : typeof body.hullNumbers === "string"
+              ? body.hullNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean)
+              : []) as string[]
+        : undefined;
+
+    // Update project + sync SHIPPING deliverable in one transaction
+    const [updated] = await prisma.$transaction([
+      prisma.project.update({
+        where: { id },
+        data: {
+          projectNumber:       body.projectNumber,
+          clientName:          body.clientName,
+          shipType:            body.shipType,
+          classSociety:        body.classSociety,
+          projectManagerName:  body.projectManagerName,
+          plannedDeliveryDate: deliveryDate,
+          description:         body.description,
+          generalNotes:        body.generalNotes,
+          status:              body.status,
+          ...(hullList !== undefined && { hullNumbers: hullList }),
+        },
+      }),
+      // Sync SHIPPING deliverable when plannedDeliveryDate is explicitly provided
+      ...(body.plannedDeliveryDate !== undefined
+        ? [
+            prisma.projectDeliverable.updateMany({
+              where: { projectId: id, type: "SHIPPING" },
+              data:  { dueDate: deliveryDate },
+            }),
+          ]
+        : []),
+    ]);
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);
@@ -47,6 +84,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+  if (!can.deleteProject(user.role)) return forbidden();
+
   try {
     const { id } = await params;
     await prisma.project.delete({ where: { id } });

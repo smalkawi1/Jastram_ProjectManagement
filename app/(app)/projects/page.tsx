@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { format } from "date-fns";
 import { getDateStatus, STATUS_CLASSES, statusLabel } from "@/lib/date-status";
 import { PlusIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
+import { getCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 
 const STATUS_PILL: Record<string, string> = {
   NOT_STARTED: "bg-gray-100 text-gray-600",
@@ -23,14 +25,19 @@ const STATUS_LABEL: Record<string, string> = {
 export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
-  const projects = await prisma.project.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      deliverables: true,
-      milestones:   true,
-      _count: { select: { tasks: true } },
-    },
-  });
+  const [projects, user] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        deliverables: true,
+        milestones:   true,
+        _count: { select: { tasks: true } },
+      },
+    }),
+    getCurrentUser(),
+  ]);
+
+  const canCreate = user ? can.createProject(user.role) : false;
 
   return (
     <div>
@@ -40,13 +47,15 @@ export default async function ProjectsPage() {
           <h1 className="text-2xl font-bold text-[#0d1f3c]">Projects</h1>
           <p className="text-sm text-gray-500 mt-0.5">{projects.length} project{projects.length !== 1 ? "s" : ""}</p>
         </div>
-        <Link
-          href="/projects/new"
-          className="inline-flex items-center gap-2 bg-[#2453a0] hover:bg-[#1e4080] text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors shadow-sm"
-        >
-          <PlusIcon className="w-4 h-4" />
-          New Project
-        </Link>
+        {canCreate && (
+          <Link
+            href="/projects/new"
+            className="inline-flex items-center gap-2 bg-[#2453a0] hover:bg-[#1e4080] text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors shadow-sm"
+          >
+            <PlusIcon className="w-4 h-4" />
+            New Project
+          </Link>
+        )}
       </div>
 
       {/* Empty state */}
@@ -55,13 +64,15 @@ export default async function ProjectsPage() {
           <FolderOpenIcon className="w-14 h-14 text-[#bfd0e8] mb-4" />
           <h2 className="text-lg font-semibold text-[#0d1f3c] mb-1">No projects yet</h2>
           <p className="text-sm text-gray-500 mb-6">Create your first project to get started.</p>
-          <Link
-            href="/projects/new"
-            className="inline-flex items-center gap-2 bg-[#2453a0] text-white text-sm font-medium px-4 py-2.5 rounded-lg"
-          >
-            <PlusIcon className="w-4 h-4" />
-            New Project
-          </Link>
+          {canCreate && (
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-2 bg-[#2453a0] text-white text-sm font-medium px-4 py-2.5 rounded-lg"
+            >
+              <PlusIcon className="w-4 h-4" />
+              New Project
+            </Link>
+          )}
         </div>
       )}
 

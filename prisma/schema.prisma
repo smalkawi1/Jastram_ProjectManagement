@@ -42,7 +42,7 @@ enum DeliverableType {
   CLASS_SUBMIT         // Submit drawings/calculations to class society
   FAT                  // Class society inspection/test (FAT)
   MANUAL               // System manual completion
-  SHIPPING             // Shipping date
+  SHIPPING             // Shipping date — kept in sync with Project.plannedDeliveryDate
 }
 
 enum DeliverableStatus {
@@ -60,28 +60,97 @@ enum TaskStatus {
   DONE
 }
 
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum UserRole {
+  VIEWER  // Read-only on all resources
+  EDITOR  // View + create + edit; no delete or settings
+  ADMIN   // Full access including delete and settings
+}
+
+// ─────────────────────────────────────────────
+// Department
+// ─────────────────────────────────────────────
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique   // e.g. "Engineering" | "Purchasing" | "Production"
+  users     User[]
+
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────────────────────────
+// User — linked to Supabase Auth via authId
+// ─────────────────────────────────────────────
+
+model User {
+  id           String        @id @default(cuid())
+  authId       String        @unique   // Supabase auth uid (auth.users.id)
+  email        String        @unique
+  name         String?
+
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id])
+
+  role         UserRole      @default(VIEWER)
+
+  notifications Notification[]
+  assignedIssues Issue[]     @relation("IssueAssignee")
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
 // ─────────────────────────────────────────────
 // Project
 // ─────────────────────────────────────────────
 
 model Project {
-  id                 String            @id @default(cuid())
-  projectNumber      String            @unique
-  clientName         String
-  shipType           String
-  classSociety       String
-  projectManagerName String
-  plannedDeliveryDate DateTime?
-  status             ProjectStatus     @default(NOT_STARTED)
-  description        String?
-  generalNotes       String?           // e.g. on hold, waiting for info, blockers
+  id                  String               @id @default(cuid())
+  projectNumber       String               @unique
+  clientName          String
+  shipType            String
+  classSociety        String
+  projectManagerName  String
+  plannedDeliveryDate DateTime?            // kept in sync with SHIPPING deliverable dueDate
+  status              ProjectStatus        @default(NOT_STARTED)
+  description         String?
+  generalNotes        String?              // e.g. on hold, waiting for info, blockers
+  hullNumbers         String[]             @default([])  // one or multiple hulls (optional)
+  // Sales order numbers: one project (JQ + 6 digits) can have multiple → SalesOrder[]
 
-  milestones         Milestone[]
-  deliverables       ProjectDeliverable[]
-  tasks              Task[]
+  milestones          Milestone[]
+  deliverables        ProjectDeliverable[]
+  tasks               Task[]
+  salesOrders         SalesOrder[]
+  issues              Issue[]
 
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// SalesOrder — multiple per project
+// Same steering system sold to multiple ships; each sale = one SalesOrder.
+// ─────────────────────────────────────────────
+
+model SalesOrder {
+  id               String   @id @default(cuid())
+  projectId        String
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  salesOrderNumber String
+  shippingDate     DateTime?   // optional per-order shipping date override
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([projectId, salesOrderNumber])
 }
 
 // ─────────────────────────────────────────────
@@ -111,6 +180,7 @@ model Milestone {
 // ─────────────────────────────────────────────
 // ProjectDeliverable (the 8 standard tracking steps)
 // Auto-created for each project on creation.
+// SHIPPING dueDate is kept in sync with Project.plannedDeliveryDate.
 // ─────────────────────────────────────────────
 
 model ProjectDeliverable {
@@ -122,6 +192,9 @@ model ProjectDeliverable {
   dueDate   DateTime?
   status    DeliverableStatus @default(NOT_STARTED)
   notes     String?
+  // Manual-printing fields (used when type = MANUAL)
+  copiesToPrint   Int?     // number of manual copies to print
+  readyForPrinting Boolean? @default(false) // manual already ready for printing
 
   reminders ReminderLog[]
 
@@ -136,22 +209,22 @@ model ProjectDeliverable {
 // ─────────────────────────────────────────────
 
 model Task {
-  id             String       @id @default(cuid())
+  id             String           @id @default(cuid())
   projectId      String
-  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   title          String
   description    String?
-  status         TaskStatus   @default(TODO)
-  orderIndex     Int          @default(0)   // position within Kanban column
+  status         TaskStatus       @default(TODO)
+  orderIndex     Int              @default(0)   // position within Kanban column
   dueAt          DateTime?
-  estimatedHours Decimal?     @db.Decimal(6, 2)
-  specJson       String?      // imperial unit specs: {"torque_lb_ft": 120, "length_in": 24}
+  estimatedHours Decimal?         @db.Decimal(6, 2)
+  specJson       String?          // imperial unit specs: {"torque_lb_ft": 120, "length_in": 24}
 
   assignments    TaskAssignment[]
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 }
 
 // ─────────────────────────────────────────────
@@ -189,6 +262,7 @@ model TaskAssignment {
 
 // ─────────────────────────────────────────────
 // Notification — in-app alerts (bell icon)
+// userId is nullable: null = system-wide; set = scoped to that user (once auth added)
 // ─────────────────────────────────────────────
 
 model Notification {
@@ -198,6 +272,9 @@ model Notification {
   body      String
   link      String?  // URL to navigate to on click
   read      Boolean  @default(false)
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 }
@@ -221,4 +298,28 @@ model ReminderLog {
 
   @@unique([milestoneId, reminderWindow, channel])
   @@unique([projectDeliverableId, reminderWindow, channel])
+}
+
+// ─────────────────────────────────────────────
+// Issue — project issue log
+// ─────────────────────────────────────────────
+
+model Issue {
+  id          String       @id @default(cuid())
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  assigneeId  String?
+  assignee    User?        @relation("IssueAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      IssueStatus  @default(OPEN)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([projectId])
+  @@index([assigneeId])
 }
