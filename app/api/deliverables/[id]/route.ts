@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { DeliverableStatus } from "@/app/generated/prisma";
 import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 
@@ -32,13 +33,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const data: {
       dueDate?: Date | null;
-      status?: string;
+      status?: DeliverableStatus;
       notes?: string | null;
       copiesToPrint?: number | null;
       readyForPrinting?: boolean | null;
     } = {
       dueDate: dueDate !== undefined ? dueDate : undefined,
-      status: body.status,
+      status: body.status as DeliverableStatus | undefined,
       notes: body.notes,
     };
     if (body.copiesToPrint !== undefined) data.copiesToPrint = body.copiesToPrint == null ? null : Number(body.copiesToPrint);
