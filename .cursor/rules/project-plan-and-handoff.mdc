@@ -1,0 +1,56 @@
+---
+description: Project plan updates, completion tracking, and agent handoff for Jastram PM
+alwaysApply: true
+---
+
+# Project plan and agent handoff (Jastram PM)
+
+## Plan location
+
+- **Authoritative plan**: `C:\Users\Admin\.cursor\plans\project_progress_resource_planner_e9ecea5c.plan.md`
+- **In-repo summary**: `PROJECT_PLAN.md` in the project root — mirrors completion status and suggested next steps; keep it in sync when you update the plan.
+- When working on this codebase, read the plan (or `PROJECT_PLAN.md`) first to understand scope, stack, and current status.
+
+## Keeping the plan up to date
+
+1. **Mark completed work** — Whenever you complete a feature or task from the plan:
+   - In **Section 6 (Suggested Implementation Order)**: set the corresponding numbered item to `[x]` (e.g. `7. [x] **Calendar**: ...`).
+   - In **Section 6.1 (Completion status)**: update the "Done" and "Not done" bullets so they accurately reflect what is implemented and what remains.
+
+2. **Suggested next steps (Section 6.2)** — Keep this list current. When you finish an item from "Suggested next steps", remove it or mark it done and add any new logical next steps. New agents should be able to continue by picking the first uncompleted item from this list.
+
+3. **Single source of truth** — Section 6, 6.1, and 6.2 in the plan are the canonical status. After updating the plan, update `PROJECT_PLAN.md` in the repo so both stay in sync. Do not leave completed work unmarked or suggested next steps stale.
+
+## When taking over (new agent)
+
+1. Read the plan file (especially Section 6, 6.1, 6.2).
+2. Optionally skim the codebase (app/, lib/, prisma/) to match "Done" vs actual code.
+3. Continue from **Section 6.2 Suggested next steps**: implement the next item(s) in order unless the user asks for something different.
+4. After implementing anything, update the plan as above (mark completed, refresh 6.1 and 6.2).
+
+## Conventions
+
+- Use existing patterns: Server Components by default; Client Components for forms, Kanban, interactive UI; API routes for mutations.
+- Marine/Jastram theme: navy primary (`#0d1f3c`, `#2453a0`), steel accents, date status colors (red/amber/green) from `lib/date-status.ts`.
+- Prisma client lives in `lib/db.ts`; generated client in `app/generated/prisma`. Use templates in `lib/milestone-templates.ts` and `lib/deliverable-templates.ts` for copy.
+
+## New planned models (not yet implemented — see plan Sections 2.3 and 9)
+
+- **`SalesOrder`** — belongs to a `Project`; fields: `salesOrderNumber` (unique per project), optional `shippingDate`. CRUD API lives at `/api/projects/[id]/sales-orders`. A project can have multiple sales orders (same system sold to multiple ships).
+- **`Department`** — `id`, `name` (e.g. "Engineering", "Purchasing", "Production").
+- **`User`** — `id`, `authId` (Supabase uid), `email`, `name`, `departmentId` (FK), `role` (enum: `VIEWER | EDITOR | ADMIN`).
+
+## Shipping date sync rule (implement in Section 12 / plan Section 2.3)
+
+`Project.plannedDeliveryDate` and the `SHIPPING` deliverable's `dueDate` must always be in sync:
+1. **On project create** — copy `plannedDeliveryDate` → SHIPPING `dueDate`.
+2. **On project PATCH** — if `plannedDeliveryDate` changes, update SHIPPING `dueDate` in the same transaction.
+3. **On deliverable PATCH** — if `type === "SHIPPING"` and `dueDate` changes, update the parent project's `plannedDeliveryDate` in the same transaction.
+
+## Auth and permissions (implement in Sections 14–15 / plan Section 9)
+
+- `lib/auth.ts` — `getCurrentUser()` (resolves Supabase session → `User` row), `requireRole(role, minRole)`.
+- `lib/permissions.ts` — pure role-based helpers: `canCreateProject(role)`, `canEditSettings(role)`, etc. (see Section 9.3 permissions matrix).
+- All mutation API routes must call `getCurrentUser()` and the relevant permission helper; return `401` if unauthenticated, `403` if insufficient role.
+- Root `middleware.ts` redirects unauthenticated requests to `/login`.
+- UI: load current user/role in root layout; hide/disable "New project", "Edit", "Delete", "Settings" per role.

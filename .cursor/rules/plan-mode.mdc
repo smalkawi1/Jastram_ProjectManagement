@@ -1,0 +1,17 @@
+---
+description: Plan mode — planning and feature design only; no implementation unless asked
+alwaysApply: false
+globs: 
+---
+
+# Plan mode (when user says "plan mode" or "planning only")
+
+When the user starts a chat in **plan mode** or asks to **update the plan** / **create plans for new features**:
+
+1. **Scope** — Focus on planning, design, and documentation. Do **not** write or change application code unless the user explicitly asks for it.
+2. **Read first** — Read the authoritative plan (`C:\Users\Admin\.cursor\plans\project_progress_resource_planner_e9ecea5c.plan.md`) and/or `PROJECT_PLAN.md` to understand current scope and completion status.
+3. **Output** — Produce or update plan documents: sections, feature specs, access control matrix, implementation order. Write in the same style as the existing plan (clear sections, tables, optional mermaid).
+4. **New features** — For new features (e.g. multi-department access, role-based permissions), create a dedicated plan or plan section: goals, entities, permissions matrix, UI/API impact, suggested implementation order.
+5. **Sync** — If you change the main plan’s completion status or next steps, note that `PROJECT_PLAN.md` should be updated to match (or update it if the user wants).
+
+Use this rule when the user says they want to "work on the plan," "plan mode," "design multi-department access," or similar planning-only work.
