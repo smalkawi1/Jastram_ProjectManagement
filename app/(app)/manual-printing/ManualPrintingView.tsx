@@ -326,14 +326,16 @@ export default function ManualPrintingView({ canEdit }: { canEdit: boolean }) {
                           ) : r.manualDeliverableId ? (
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
+                                const id = r.manualDeliverableId;
+                                if (!id) return;
                                 setEditRow({
-                                  id: r.manualDeliverableId,
+                                  id,
                                   copiesToPrint: r.copiesToPrint,
                                   manualDueDate: r.manualDueDate,
                                   readyForPrinting: r.readyForPrinting,
-                                })
-                              }
+                                });
+                              }}
                               className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#2453a0]"
                               title="Edit row"
                             >
