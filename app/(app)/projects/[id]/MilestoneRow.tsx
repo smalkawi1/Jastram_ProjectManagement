@@ -37,7 +37,7 @@ export default function MilestoneRow({
   milestone,
   template,
   status,
-  canEdit = true,
+  canEdit = false,
 }: {
   milestone: Milestone;
   template: MilestoneTemplate;
@@ -47,31 +47,68 @@ export default function MilestoneRow({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
+  // Form fields
   const [dueDate, setDueDate] = useState(
     milestone.dueDate ? format(new Date(milestone.dueDate), "yyyy-MM-dd") : ""
   );
   const [milStatus, setMilStatus] = useState(milestone.status);
   const [notes, setNotes] = useState(milestone.notes ?? "");
+
+  // Last-saved values — used to restore form on Cancel
+  const [savedDueDate, setSavedDueDate] = useState(
+    milestone.dueDate ? format(new Date(milestone.dueDate), "yyyy-MM-dd") : ""
+  );
+  const [savedMilStatus, setSavedMilStatus] = useState(milestone.status);
+  const [savedNotes, setSavedNotes] = useState(milestone.notes ?? "");
+
+  // Display values
   const [currentStatus, setCurrentStatus] = useState(status);
   const [currentDueDate, setCurrentDueDate] = useState(milestone.dueDate);
 
   const sc = STATUS_CLASSES[currentStatus];
 
+  function cancelEdit() {
+    setDueDate(savedDueDate);
+    setMilStatus(savedMilStatus);
+    setNotes(savedNotes);
+    setSaveError("");
+    setEditing(false);
+  }
+
   async function save() {
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch(`/api/milestones/${milestone.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dueDate: dueDate || null, status: milStatus, notes: notes || null }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setCurrentDueDate(updated.dueDate ? new Date(updated.dueDate) : null);
-        setCurrentStatus(getDateStatus(updated.dueDate ? new Date(updated.dueDate) : null, updated.status === "COMPLETED"));
-        setEditing(false);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to save");
       }
+      const updated = await res.json();
+      const newDueDate = updated.dueDate ? new Date(updated.dueDate) : null;
+      const newDateStr = updated.dueDate ? format(new Date(updated.dueDate), "yyyy-MM-dd") : "";
+
+      // Update display values
+      setCurrentDueDate(newDueDate);
+      setCurrentStatus(getDateStatus(newDueDate, updated.status === "COMPLETED"));
+
+      // Sync form and saved state
+      setDueDate(newDateStr);
+      setMilStatus(updated.status);
+      setNotes(updated.notes ?? "");
+      setSavedDueDate(newDateStr);
+      setSavedMilStatus(updated.status);
+      setSavedNotes(updated.notes ?? "");
+
+      setEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -84,7 +121,7 @@ export default function MilestoneRow({
         onClick={() => !editing && setOpen((o) => !o)}
       >
         {/* Type badge */}
-        <span className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${TYPE_COLORS[milestone.type]}`}>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded shrink-0 ${TYPE_COLORS[milestone.type] ?? "bg-gray-200 text-gray-700"}`}>
           {template.shortLabel}
         </span>
 
@@ -120,7 +157,7 @@ export default function MilestoneRow({
         {/* Edit button */}
         {canEdit && (
           <button
-            onClick={(e) => { e.stopPropagation(); setEditing(true); setOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); setSaveError(""); setEditing(true); setOpen(true); }}
             className="shrink-0 p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#2453a0] transition-colors"
           >
             <PencilSquareIcon className="w-4 h-4" />
@@ -165,18 +202,20 @@ export default function MilestoneRow({
             </div>
           )}
 
-          {/* Outputs */}
-          <div className="mb-3">
-            <p className="text-xs font-medium text-gray-600 mb-1">Outputs</p>
-            <ul className="space-y-0.5">
-              {template.outputs.map((item) => (
-                <li key={item} className="text-xs text-gray-500 flex gap-1.5">
-                  <span className="text-green-400 mt-0.5">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Outputs — only render if there are outputs */}
+          {template.outputs.length > 0 && (
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-600 mb-1">Outputs</p>
+              <ul className="space-y-0.5">
+                {template.outputs.map((item) => (
+                  <li key={item} className="text-xs text-gray-500 flex gap-1.5">
+                    <span className="text-green-400 mt-0.5">✓</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Risk note */}
           {template.riskNote && (
@@ -217,6 +256,9 @@ export default function MilestoneRow({
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] resize-none"
                 />
               </div>
+              {saveError && (
+                <p className="text-xs text-red-600">{saveError}</p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={save}
@@ -227,7 +269,7 @@ export default function MilestoneRow({
                   {saving ? "Saving…" : "Save"}
                 </button>
                 <button
-                  onClick={() => setEditing(false)}
+                  onClick={cancelEdit}
                   className="flex items-center gap-1.5 text-gray-500 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-100"
                 >
                   <XMarkIcon className="w-3.5 h-3.5" />

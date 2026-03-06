@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUser, unauthorized } from "@/lib/auth";
 
 /**
  * GET /api/manual-printing?month=YYYY-MM
@@ -7,6 +8,9 @@ import { prisma } from "@/lib/db";
  * for the monthly manual-printing reminder snapshot.
  */
 export async function GET(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+
   try {
     const { searchParams } = new URL(req.url);
     const monthParam = searchParams.get("month");

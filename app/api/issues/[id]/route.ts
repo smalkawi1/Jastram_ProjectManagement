@@ -2,18 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { parseInputDate } from "@/lib/date";
 
-function parseDueDate(
-  dueDate: string | null | undefined
-): Date | null | undefined {
-  if (dueDate === undefined) return undefined;
-  if (!dueDate) return null;
+const VALID_ISSUE_STATUSES = ["OPEN", "IN_PROGRESS", "CLOSED"] as const;
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-    return new Date(`${dueDate}T12:00:00.000Z`);
-  }
-
-  return new Date(dueDate);
+function isPrismaP2025(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "P2025"
+  );
 }
 
 // Update an existing issue
@@ -29,22 +28,20 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
 
-    const { title, description, assigneeId, dueDate, status }: {
-      title?: string;
-      description?: string;
-      assigneeId?: string | null;
-      dueDate?: string | null;
-      status?: "OPEN" | "IN_PROGRESS" | "CLOSED";
-    } = body;
+    const { title, description, assigneeId, dueDate, status } = body;
 
-    const due = parseDueDate(dueDate);
+    if (status !== undefined && !VALID_ISSUE_STATUSES.includes(status)) {
+      return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 });
+    }
+
+    const due = dueDate !== undefined ? parseInputDate(dueDate) : undefined;
 
     const updated = await prisma.issue.update({
       where: { id },
       data: {
         title,
         description,
-        assigneeId: assigneeId ?? null,
+        assigneeId: assigneeId !== undefined ? (assigneeId ?? null) : undefined,
         dueDate: due,
         status,
       },
@@ -58,6 +55,9 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);
+    if (isPrismaP2025(error)) {
+      return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+    }
     return NextResponse.json(
       { error: "Failed to update issue" },
       { status: 500 }
@@ -80,10 +80,12 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
+    if (isPrismaP2025(error)) {
+      return NextResponse.json({ error: "Issue not found" }, { status: 404 });
+    }
     return NextResponse.json(
       { error: "Failed to delete issue" },
       { status: 500 }
     );
   }
 }
-

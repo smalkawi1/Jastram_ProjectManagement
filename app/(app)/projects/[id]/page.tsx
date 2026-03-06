@@ -4,13 +4,12 @@ import { prisma } from "@/lib/db";
 import { format } from "date-fns";
 import { getDateStatus, STATUS_CLASSES, statusLabel } from "@/lib/date-status";
 import { getDeliverableTemplate, DELIVERABLE_ORDER } from "@/lib/deliverable-templates";
-import { getMilestoneTemplate } from "@/lib/milestone-templates";
+import { getMilestoneTemplate, MILESTONE_ORDER } from "@/lib/milestone-templates";
+import { PROJECT_STATUS_PILL, PROJECT_STATUS_LABEL } from "@/lib/constants";
 import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  PencilSquareIcon,
-  TrashIcon,
 } from "@heroicons/react/24/outline";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
@@ -22,18 +21,6 @@ import ProjectDetailActions from "./ProjectDetailActions";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_PILL: Record<string, string> = {
-  NOT_STARTED: "bg-gray-100 text-gray-600",
-  IN_PROGRESS: "bg-blue-100 text-blue-700",
-  ON_HOLD:     "bg-amber-100 text-amber-700",
-  COMPLETED:   "bg-green-100 text-green-700",
-  CANCELLED:   "bg-red-100 text-red-600",
-};
-const STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Not Started", IN_PROGRESS: "In Progress",
-  ON_HOLD: "On Hold", COMPLETED: "Completed", CANCELLED: "Cancelled",
-};
-
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [project, user, assignees] = await Promise.all([
@@ -42,8 +29,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       include: {
         milestones:   { orderBy: { type: "asc" } },
         deliverables: { orderBy: { type: "asc" } },
-        tasks:        { orderBy: [{ status: "asc" }, { orderIndex: "asc" }] },
         salesOrders:  { orderBy: { salesOrderNumber: "asc" } },
+        issues: {
+          orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
+          include: {
+            assignee: { select: { id: true, name: true, email: true } },
+          },
+        },
       },
     }),
     getCurrentUser(),
@@ -56,12 +48,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   const canEdit = user ? can.editProject(user.role) : false;
   const canDelete = user ? can.deleteProject(user.role) : false;
+  const canEditIssues = user ? can.editIssue(user.role) : false;
+  const canDeleteIssues = user ? can.deleteIssue(user.role) : false;
 
   const sortedDeliverables = DELIVERABLE_ORDER.map(
     (type) => project.deliverables.find((d) => d.type === type)!
   ).filter(Boolean);
 
-  const MILESTONE_ORDER = ["KICK_OFF", "PDR", "FDR"] as const;
   const sortedMilestones = MILESTONE_ORDER.map(
     (type) => project.milestones.find((m) => m.type === type)!
   ).filter(Boolean);
@@ -87,8 +80,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             <span className="text-xs font-mono text-[#6b8cba] bg-[#f0f5fb] px-2 py-0.5 rounded">
               {project.projectNumber}
             </span>
-            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${STATUS_PILL[project.status]}`}>
-              {STATUS_LABEL[project.status]}
+            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${PROJECT_STATUS_PILL[project.status]}`}>
+              {PROJECT_STATUS_LABEL[project.status]}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-[#0d1f3c] mt-1">{project.clientName}</h1>
@@ -136,9 +129,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       {/* ── Issue log ── */}
       <IssueLogSection
         projectId={project.id}
-        initialIssues={[]}
+        initialIssues={project.issues}
         assignees={assigneeOptions}
-        canEdit={canEdit}
+        canEdit={canEditIssues}
+        canDelete={canDeleteIssues}
       />
 
       {/* ── Deliverables ── */}

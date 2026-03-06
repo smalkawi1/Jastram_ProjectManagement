@@ -6,7 +6,7 @@
   "dev": "next dev",
   "build": "prisma generate && next build",
   "start": "next start",
-  "lint": "eslint",
+  "lint": "eslint .",
   "fix-admin": "tsx prisma/fix-admin.ts"
   },
   "prisma": {

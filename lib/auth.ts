@@ -83,3 +83,6 @@ const RANK: Record<UserRole, number> = { VIEWER: 0, EDITOR: 1, ADMIN: 2 };
 export function atLeast(role: UserRole, min: UserRole): boolean {
   return RANK[role] >= RANK[min];
 }
+
+/** Alias matching plan docs and workspace rules. */
+export const requireRole = atLeast;

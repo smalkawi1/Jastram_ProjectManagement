@@ -4,38 +4,15 @@ import { DELIVERABLE_ORDER } from "@/lib/deliverable-templates";
 import { MilestoneType } from "@/app/generated/prisma";
 import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { parseInputDate } from "@/lib/date";
 
 const MILESTONE_TYPES: MilestoneType[] = ["KICK_OFF", "PDR", "FDR"];
 const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
 
-function parsePlannedDeliveryDate(
-  plannedDeliveryDate: string | null | undefined
-): Date | null {
-  if (!plannedDeliveryDate || typeof plannedDeliveryDate !== "string") return null;
-  const s = plannedDeliveryDate.trim();
-  if (!s) return null;
-
-  // Handle plain "YYYY-MM-DD" from date inputs without timezone shifts.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    return new Date(`${s}T12:00:00.000Z`);
-  }
-  // Handle "DD/MM/YYYY" or "MM/DD/YYYY" from some browsers/locales
-  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (slashMatch) {
-    const [, a, b, y] = slashMatch;
-    const month = parseInt(a!, 10);
-    const day = parseInt(b!, 10);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      const iso = `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      return new Date(`${iso}T12:00:00.000Z`);
-    }
-  }
-
-  const d = new Date(plannedDeliveryDate);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+
   try {
     const projects = await prisma.project.findMany({
       orderBy: { createdAt: "desc" },
@@ -78,7 +55,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const deliveryDate = parsePlannedDeliveryDate(plannedDeliveryDate);
+    const deliveryDate = parseInputDate(plannedDeliveryDate);
     const manualDate =
       deliveryDate != null
         ? new Date(deliveryDate.getTime() - THREE_WEEKS_MS)

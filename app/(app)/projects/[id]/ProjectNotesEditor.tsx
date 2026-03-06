@@ -6,7 +6,7 @@ import { PencilSquareIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outl
 export default function ProjectNotesEditor({
   projectId,
   initialNotes,
-  canEdit = true,
+  canEdit = false,
 }: {
   projectId: string;
   initialNotes: string;
@@ -16,17 +16,25 @@ export default function ProjectNotesEditor({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(initialNotes);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   async function save() {
     setSaving(true);
+    setSaveError("");
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ generalNotes: draft }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to save notes");
+      }
       setNotes(draft);
       setEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save notes");
     } finally {
       setSaving(false);
     }
@@ -55,12 +63,15 @@ export default function ProjectNotesEditor({
         <p className="text-xs font-semibold text-amber-800 mb-2">📌 General Notes</p>
         <textarea
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => { setDraft(e.target.value); setSaveError(""); }}
           rows={3}
           autoFocus
           placeholder="e.g. Project on hold pending client approval of thruster specs…"
           className="w-full bg-white border border-amber-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
         />
+        {saveError && (
+          <p className="text-xs text-red-600 mt-1">{saveError}</p>
+        )}
         <div className="flex gap-2 mt-2">
           <button
             onClick={save}
@@ -71,7 +82,7 @@ export default function ProjectNotesEditor({
             {saving ? "Saving…" : "Save"}
           </button>
           <button
-            onClick={() => { setEditing(false); setDraft(notes); }}
+            onClick={() => { setEditing(false); setDraft(notes); setSaveError(""); }}
             className="flex items-center gap-1.5 text-gray-500 text-xs px-3 py-1.5 rounded-lg hover:bg-amber-100"
           >
             <XMarkIcon className="w-3.5 h-3.5" />

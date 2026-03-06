@@ -32,6 +32,13 @@ Read the full plan when continuing work. This file is a short reference for comp
 - `proxy.ts` rename (Next.js 16); sidebar sign-out fallback when no User row; Account nav + `/account` page (profile + change password)
 - Password reset: `/auth/reset-password` (request link + set new password from email), "Forgot password?" on login
 - UI permission controls: Edit/Delete on project detail gated by role; Settings redirect for non-Admin; Team "Add Member" and member Edit/Delete gated by role; project edit page at `/projects/[id]/edit`
+- **Full code review cleanup** (March 2026):
+  - Security: deleted `/api/debug/auth` leak; fixed open redirect in login; added auth guard to all GET API routes; created `middleware.ts` with Supabase session refresh + redirect to `/login`
+  - Data integrity: fixed `ProjectNotesEditor` unconditional save bug; fixed `DeliverableRow`/`MilestoneRow` Cancel not restoring form state; added `router.refresh()` after SHIPPING save; fixed password reset double-`getSession` bug
+  - Error feedback: all mutation components (DeliverableRow, MilestoneRow, IssueLogSection, ProjectDetailActions, TeamMemberEditor, TeamMemberDeleteButton, ManualPrintingView, ProjectNotesEditor) now surface API errors to the user
+  - API robustness: `lib/date.ts` with shared `parseInputDate`; P2025 → 404 in all PATCH/DELETE routes; status enum validation; NaN capacity guard in team POST
+  - Code quality: `lib/constants.ts` with shared `PROJECT_STATUS_PILL`/`PROJECT_STATUS_LABEL`; `MILESTONE_ORDER` exported from `lib/milestone-templates.ts`; removed dead `tasks` include from project detail and `_count.tasks` from project list; issues now SSR-rendered and passed as `initialIssues`; `canEdit` defaults changed to `false`; two-step delete in `IssueLogSection`; `canDelete` prop split from `canEdit`; `requireRole` alias added to `lib/auth.ts`; hardcoded personal name removed from milestone template; eslint script fixed; calendar year NaN guard added
+  - Permission gates: `/projects/new` and `/team/new` converted to server component wrappers that redirect non-EDITOR users
 
 **Not done**
 

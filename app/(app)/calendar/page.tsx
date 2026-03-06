@@ -36,7 +36,8 @@ export default async function CalendarPage({
 }) {
   const params = await searchParams;
   const now = new Date();
-  const year = params.year ? parseInt(params.year, 10) : now.getFullYear();
+  const rawYear = params.year ? parseInt(params.year, 10) : now.getFullYear();
+  const year = Number.isNaN(rawYear) || rawYear < 2000 || rawYear > 2100 ? now.getFullYear() : rawYear;
   const monthParam = params.month ? parseInt(params.month, 10) : now.getMonth() + 1;
   const month = Math.max(1, Math.min(12, monthParam));
   const viewDate = new Date(year, month - 1, 1);

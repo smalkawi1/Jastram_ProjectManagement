@@ -44,17 +44,22 @@ export default function IssueLogSection({
   projectId,
   initialIssues = [],
   assignees,
-  canEdit = true,
+  canEdit = false,
+  canDelete = false,
 }: {
   projectId: string;
   initialIssues?: Issue[];
   assignees: IssueAssignee[];
   canEdit?: boolean;
+  canDelete?: boolean;
 }) {
   const [issues, setIssues] = useState<Issue[]>(initialIssues || []);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | "new" | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -68,19 +73,22 @@ export default function IssueLogSection({
     async function load() {
       try {
         const res = await fetch(`/api/projects/${projectId}/issues`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (!cancelled) setFetchError(data.error ?? "Failed to load issues");
+          return;
+        }
         const data: Issue[] = await res.json();
         if (!cancelled) {
           setIssues(data);
+          setFetchError(null);
         }
       } catch {
-        // ignore for now; UI will just show whatever is in state
+        if (!cancelled) setFetchError("Failed to load issues");
       }
     }
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [projectId]);
 
   function resetForm() {
@@ -89,17 +97,20 @@ export default function IssueLogSection({
     setStatus("OPEN");
     setDueDate("");
     setAssigneeId("");
+    setMutationError(null);
   }
 
   function startAdd() {
     setAdding(true);
     setEditingId(null);
+    setConfirmDeleteId(null);
     resetForm();
   }
 
   function startEdit(issue: Issue) {
     setEditingId(issue.id);
     setAdding(false);
+    setConfirmDeleteId(null);
     setTitle(issue.title);
     setDescription(issue.description ?? "");
     setStatus(issue.status);
@@ -107,12 +118,13 @@ export default function IssueLogSection({
       issue.dueDate ? format(new Date(issue.dueDate), "yyyy-MM-dd") : ""
     );
     setAssigneeId(issue.assigneeId ?? "");
+    setMutationError(null);
   }
 
   async function handleSaveNew() {
     if (!title.trim()) return;
-
     setSavingId("new");
+    setMutationError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/issues`, {
         method: "POST",
@@ -125,12 +137,16 @@ export default function IssueLogSection({
           assigneeId: assigneeId || null,
         }),
       });
-      if (res.ok) {
-        const created: Issue = await res.json();
-        setIssues((prev) => [created, ...prev]);
-        setAdding(false);
-        resetForm();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to create issue");
       }
+      const created: Issue = await res.json();
+      setIssues((prev) => [created, ...prev]);
+      setAdding(false);
+      resetForm();
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : "Failed to create issue");
     } finally {
       setSavingId(null);
     }
@@ -138,8 +154,8 @@ export default function IssueLogSection({
 
   async function handleSaveEdit(id: string) {
     if (!title.trim()) return;
-
     setSavingId(id);
+    setMutationError(null);
     try {
       const res = await fetch(`/api/issues/${id}`, {
         method: "PATCH",
@@ -152,30 +168,37 @@ export default function IssueLogSection({
           assigneeId: assigneeId || null,
         }),
       });
-      if (res.ok) {
-        const updated: Issue = await res.json();
-        setIssues((prev) =>
-          prev.map((iss) => (iss.id === id ? updated : iss))
-        );
-        setEditingId(null);
-        resetForm();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to update issue");
       }
+      const updated: Issue = await res.json();
+      setIssues((prev) =>
+        prev.map((iss) => (iss.id === id ? updated : iss))
+      );
+      setEditingId(null);
+      resetForm();
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : "Failed to update issue");
     } finally {
       setSavingId(null);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this issue?")) return;
-
     setSavingId(id);
+    setMutationError(null);
     try {
-      const res = await fetch(`/api/issues/${id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setIssues((prev) => prev.filter((iss) => iss.id !== id));
+      const res = await fetch(`/api/issues/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to delete issue");
       }
+      setIssues((prev) => prev.filter((iss) => iss.id !== id));
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setMutationError(err instanceof Error ? err.message : "Failed to delete issue");
+      setConfirmDeleteId(null);
     } finally {
       setSavingId(null);
     }
@@ -223,7 +246,20 @@ export default function IssueLogSection({
       </div>
 
       <div className="px-5 py-3 space-y-3">
-        {!issues.length && !adding && (
+        {fetchError && (
+          <p className="text-xs text-red-500 flex items-center gap-1.5">
+            <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+            {fetchError}
+          </p>
+        )}
+
+        {mutationError && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            {mutationError}
+          </p>
+        )}
+
+        {!issues.length && !adding && !fetchError && (
           <p className="text-xs text-gray-400 flex items-center gap-1.5">
             <ExclamationTriangleIcon className="w-3.5 h-3.5" />
             No issues logged for this project.
@@ -257,6 +293,7 @@ export default function IssueLogSection({
 
         {issuesWithStatus.map(({ issue, date, ds, sc }) => {
           const isEditing = editingId === issue.id;
+          const isConfirmingDelete = confirmDeleteId === issue.id;
           return (
             <div
               key={issue.id}
@@ -303,15 +340,11 @@ export default function IssueLogSection({
                     )}
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
                       <span>
-                        <span className="font-semibold text-gray-600">
-                          Owner:
-                        </span>{" "}
+                        <span className="font-semibold text-gray-600">Owner:</span>{" "}
                         {assigneeLabel(issue)}
                       </span>
                       <span>
-                        <span className="font-semibold text-gray-600">
-                          Due:
-                        </span>{" "}
+                        <span className="font-semibold text-gray-600">Due:</span>{" "}
                         {date ? (
                           <>
                             <span className={sc.text}>
@@ -327,8 +360,8 @@ export default function IssueLogSection({
                       </span>
                     </div>
                   </div>
-                  {canEdit && (
-                    <div className="flex flex-col items-end gap-1">
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {canEdit && (
                       <button
                         onClick={() => startEdit(issue)}
                         className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-[#2453a0]"
@@ -336,16 +369,36 @@ export default function IssueLogSection({
                         <PencilSquareIcon className="w-3.5 h-3.5" />
                         Edit
                       </button>
-                      <button
-                        onClick={() => handleDelete(issue.id)}
-                        disabled={savingId === issue.id}
-                        className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600 disabled:opacity-60"
-                      >
-                        <TrashIcon className="w-3.5 h-3.5" />
-                        Delete
-                      </button>
-                    </div>
-                  )}
+                    )}
+                    {canDelete && (
+                      isConfirmingDelete ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDelete(issue.id)}
+                            disabled={savingId === issue.id}
+                            className="inline-flex items-center gap-1 text-xs text-white bg-red-600 hover:bg-red-700 px-2 py-0.5 rounded disabled:opacity-60"
+                          >
+                            <TrashIcon className="w-3 h-3" />
+                            {savingId === issue.id ? "Deleting…" : "Confirm"}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="text-xs text-gray-500 hover:text-gray-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(issue.id)}
+                          className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600"
+                        >
+                          <TrashIcon className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      )
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -391,9 +444,7 @@ function IssueFormRow({
     <div className="px-4 py-3 space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            Title
-          </label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
           <input
             type="text"
             value={title}
@@ -404,9 +455,7 @@ function IssueFormRow({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Status
-            </label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
             <select
               value={status}
               onChange={(e) => onChange.status(e.target.value as IssueStatus)}
@@ -418,9 +467,7 @@ function IssueFormRow({
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              Due date
-            </label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Due date</label>
             <input
               type="date"
               value={dueDate}
@@ -433,9 +480,7 @@ function IssueFormRow({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="md:col-span-2">
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            Description
-          </label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
           <textarea
             value={description}
             onChange={(e) => onChange.description(e.target.value)}
@@ -445,9 +490,7 @@ function IssueFormRow({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">
-            Assigned to
-          </label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Assigned to</label>
           <select
             value={assigneeId}
             onChange={(e) => onChange.assigneeId(e.target.value)}
@@ -483,4 +526,3 @@ function IssueFormRow({
     </div>
   );
 }
-

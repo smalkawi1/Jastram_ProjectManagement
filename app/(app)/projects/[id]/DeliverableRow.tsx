@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 import { getDateStatus, STATUS_CLASSES, statusLabel } from "@/lib/date-status";
 import type { DeliverableTemplate } from "@/lib/deliverable-templates";
 import type { DateStatus } from "@/lib/date-status";
@@ -32,7 +33,7 @@ export default function DeliverableRow({
   template,
   status,
   stepNumber,
-  canEdit = true,
+  canEdit = false,
 }: {
   deliverable: Deliverable;
   template: DeliverableTemplate;
@@ -40,22 +41,43 @@ export default function DeliverableRow({
   stepNumber: number;
   canEdit?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
+  // Form fields (what the user is typing)
   const [dueDate, setDueDate] = useState(
     deliverable.dueDate ? format(new Date(deliverable.dueDate), "yyyy-MM-dd") : ""
   );
   const [delStatus, setDelStatus] = useState(deliverable.status);
   const [notes, setNotes] = useState(deliverable.notes ?? "");
+
+  // Last-saved values — used to restore form on Cancel
+  const [savedDueDate, setSavedDueDate] = useState(
+    deliverable.dueDate ? format(new Date(deliverable.dueDate), "yyyy-MM-dd") : ""
+  );
+  const [savedDelStatus, setSavedDelStatus] = useState(deliverable.status);
+  const [savedNotes, setSavedNotes] = useState(deliverable.notes ?? "");
+
+  // Display values (what is shown in the collapsed row)
   const [currentStatus, setCurrentStatus] = useState(status);
   const [currentDueDate, setCurrentDueDate] = useState(deliverable.dueDate);
 
   const sc = STATUS_CLASSES[currentStatus];
 
+  function cancelEdit() {
+    setDueDate(savedDueDate);
+    setDelStatus(savedDelStatus);
+    setNotes(savedNotes);
+    setSaveError("");
+    setEditing(false);
+  }
+
   async function save() {
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch(`/api/deliverables/${deliverable.id}`, {
         method: "PATCH",
@@ -66,12 +88,34 @@ export default function DeliverableRow({
           notes:   notes || null,
         }),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setCurrentDueDate(updated.dueDate ? new Date(updated.dueDate) : null);
-        setCurrentStatus(getDateStatus(updated.dueDate ? new Date(updated.dueDate) : null, updated.status === "COMPLETED"));
-        setEditing(false);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to save");
       }
+      const updated = await res.json();
+      const newDueDate = updated.dueDate ? new Date(updated.dueDate) : null;
+      const newDateStr = updated.dueDate ? format(new Date(updated.dueDate), "yyyy-MM-dd") : "";
+
+      // Update display values
+      setCurrentDueDate(newDueDate);
+      setCurrentStatus(getDateStatus(newDueDate, updated.status === "COMPLETED"));
+
+      // Sync form and saved state to what was actually persisted
+      setDueDate(newDateStr);
+      setDelStatus(updated.status);
+      setNotes(updated.notes ?? "");
+      setSavedDueDate(newDateStr);
+      setSavedDelStatus(updated.status);
+      setSavedNotes(updated.notes ?? "");
+
+      setEditing(false);
+
+      // When SHIPPING date changes, refresh so the project header date updates
+      if (updated.type === "SHIPPING") {
+        router.refresh();
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -120,7 +164,7 @@ export default function DeliverableRow({
         {/* Edit button */}
         {canEdit && (
           <button
-            onClick={(e) => { e.stopPropagation(); setEditing(true); setOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); setSaveError(""); setEditing(true); setOpen(true); }}
             className="shrink-0 p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-[#2453a0] transition-colors"
           >
             <PencilSquareIcon className="w-4 h-4" />
@@ -168,6 +212,9 @@ export default function DeliverableRow({
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] resize-none"
                 />
               </div>
+              {saveError && (
+                <p className="text-xs text-red-600">{saveError}</p>
+              )}
               <div className="flex gap-2">
                 <button
                   onClick={save}
@@ -178,7 +225,7 @@ export default function DeliverableRow({
                   {saving ? "Saving…" : "Save"}
                 </button>
                 <button
-                  onClick={() => setEditing(false)}
+                  onClick={cancelEdit}
                   className="flex items-center gap-1.5 text-gray-500 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-100"
                 >
                   <XMarkIcon className="w-3.5 h-3.5" />

@@ -1,5 +1,7 @@
 import { MilestoneType } from "@/app/generated/prisma";
 
+export const MILESTONE_ORDER: MilestoneType[] = ["KICK_OFF", "PDR", "FDR"];
+
 export interface MilestoneTemplate {
   type: MilestoneType;
   label: string;
@@ -25,7 +27,7 @@ export const MILESTONE_TEMPLATES: Record<MilestoneType, MilestoneTemplate> = {
       "Engineering Manager",
       "Mechanical Lead",
       "Electrical Lead",
-      "Chris Simon",
+      "Contracts / Sales Representative",
     ],
     agenda: [
       "Review contract scope and deliverables",

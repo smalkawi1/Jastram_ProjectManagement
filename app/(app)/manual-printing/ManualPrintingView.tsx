@@ -33,6 +33,7 @@ export default function ManualPrintingView({ canEdit }: { canEdit: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [editRow, setEditRow] = useState<{
     id: string;
     copiesToPrint: number | null;
@@ -73,6 +74,7 @@ export default function ManualPrintingView({ canEdit }: { canEdit: boolean }) {
   ) {
     if (!deliverableId) return;
     setSavingId(deliverableId);
+    setSaveError(null);
     try {
       const res = await fetch(`/api/deliverables/${deliverableId}`, {
         method: "PATCH",
@@ -96,7 +98,12 @@ export default function ManualPrintingView({ canEdit }: { canEdit: boolean }) {
           )
         );
         setEditRow(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data.error ?? "Failed to save");
       }
+    } catch {
+      setSaveError("Failed to save");
     } finally {
       setSavingId(null);
     }
@@ -128,6 +135,8 @@ export default function ManualPrintingView({ canEdit }: { canEdit: boolean }) {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      setSaveError("Clipboard access denied. Copy the text manually.");
     });
   }
 
@@ -169,6 +178,12 @@ export default function ManualPrintingView({ canEdit }: { canEdit: boolean }) {
       {error && (
         <div className="rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
           {error}
+        </div>
+      )}
+
+      {saveError && (
+        <div className="rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
+          {saveError}
         </div>
       )}
 

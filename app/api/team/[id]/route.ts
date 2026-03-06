@@ -3,10 +3,22 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 
+function isPrismaP2025(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "P2025"
+  );
+}
+
 export async function GET(
   _: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+
   try {
     const { id } = await params;
     const member = await prisma.teamMember.findUnique({
@@ -56,6 +68,9 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);
+    if (isPrismaP2025(error)) {
+      return NextResponse.json({ error: "Team member not found" }, { status: 404 });
+    }
     return NextResponse.json({ error: "Failed to update team member" }, { status: 500 });
   }
 }
@@ -74,6 +89,9 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
+    if (isPrismaP2025(error)) {
+      return NextResponse.json({ error: "Team member not found" }, { status: 404 });
+    }
     return NextResponse.json({ error: "Failed to delete team member" }, { status: 500 });
   }
 }

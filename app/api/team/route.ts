@@ -4,6 +4,9 @@ import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+
   try {
     const members = await prisma.teamMember.findMany({
       orderBy: { name: "asc" },
@@ -33,6 +36,9 @@ export async function POST(req: NextRequest) {
 
     const capacity =
       capacityHoursPerWeek != null ? Number(capacityHoursPerWeek) : 40;
+    if (Number.isNaN(capacity)) {
+      return NextResponse.json({ error: "Invalid capacityHoursPerWeek" }, { status: 400 });
+    }
     const member = await prisma.teamMember.create({
       data: {
         name: name.trim(),

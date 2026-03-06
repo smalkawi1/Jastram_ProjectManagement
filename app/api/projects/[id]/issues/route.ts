@@ -2,28 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getCurrentUser, unauthorized, forbidden } from "@/lib/auth";
 import { can } from "@/lib/permissions";
+import { parseInputDate } from "@/lib/date";
 
-function parseDueDate(
-  dueDate: string | null | undefined
-): Date | null | undefined {
-  if (dueDate === undefined) return undefined;
-  if (!dueDate) return null;
-
-  // When the client sends a plain "YYYY-MM-DD" from a date input,
-  // interpret it as a date-only value and normalise to noon UTC.
-  // This avoids timezone shifts that can move the date backwards.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-    return new Date(`${dueDate}T12:00:00.000Z`);
-  }
-
-  return new Date(dueDate);
-}
+const VALID_ISSUE_STATUSES = ["OPEN", "IN_PROGRESS", "CLOSED"] as const;
 
 // List issues for a single project
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = await getCurrentUser();
+  if (!user) return unauthorized();
+
   try {
     const { id } = await params;
 
@@ -79,7 +69,11 @@ export async function POST(
       );
     }
 
-    const due = parseDueDate(dueDate);
+    if (status !== undefined && !VALID_ISSUE_STATUSES.includes(status)) {
+      return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 });
+    }
+
+    const due = dueDate !== undefined ? parseInputDate(dueDate) : undefined;
 
     const issue = await prisma.issue.create({
       data: {

@@ -3,14 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-const STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Not Started",
-  IN_PROGRESS: "In Progress",
-  ON_HOLD: "On Hold",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-};
+import { PROJECT_STATUS_LABEL } from "@/lib/constants";
 
 type Initial = {
   projectNumber: string;
@@ -208,7 +201,7 @@ export default function ProjectEditForm({
           className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent bg-white"
         >
           {statuses.map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s] ?? s}</option>
+            <option key={s} value={s}>{PROJECT_STATUS_LABEL[s] ?? s}</option>
           ))}
         </select>
       </div>

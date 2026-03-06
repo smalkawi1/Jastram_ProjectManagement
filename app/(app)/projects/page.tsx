@@ -2,25 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { format } from "date-fns";
 import { getDateStatus, STATUS_CLASSES, statusLabel } from "@/lib/date-status";
+import { PROJECT_STATUS_PILL, PROJECT_STATUS_LABEL } from "@/lib/constants";
 import { PlusIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
 import { getCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
-
-const STATUS_PILL: Record<string, string> = {
-  NOT_STARTED: "bg-gray-100 text-gray-600",
-  IN_PROGRESS: "bg-blue-100 text-blue-700",
-  ON_HOLD:     "bg-amber-100 text-amber-700",
-  COMPLETED:   "bg-green-100 text-green-700",
-  CANCELLED:   "bg-red-100 text-red-600",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  NOT_STARTED: "Not Started",
-  IN_PROGRESS: "In Progress",
-  ON_HOLD:     "On Hold",
-  COMPLETED:   "Completed",
-  CANCELLED:   "Cancelled",
-};
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +16,6 @@ export default async function ProjectsPage() {
       include: {
         deliverables: true,
         milestones:   true,
-        _count: { select: { tasks: true } },
       },
     }),
     getCurrentUser(),
@@ -107,8 +91,8 @@ export default async function ProjectsPage() {
                       <span className="text-xs font-mono text-[#6b8cba] bg-[#f0f5fb] px-2 py-0.5 rounded">
                         {project.projectNumber}
                       </span>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_PILL[project.status]}`}>
-                        {STATUS_LABEL[project.status]}
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${PROJECT_STATUS_PILL[project.status]}`}>
+                        {PROJECT_STATUS_LABEL[project.status]}
                       </span>
                     </div>
                     <h2 className="mt-1.5 text-base font-semibold text-[#0d1f3c] truncate">

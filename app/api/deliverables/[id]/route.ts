@@ -6,6 +6,15 @@ import { can } from "@/lib/permissions";
 
 const THREE_WEEKS_MS = 21 * 24 * 60 * 60 * 1000;
 
+function isPrismaP2025(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "P2025"
+  );
+}
+
 function parseDueDate(
   dueDate: string | null | undefined
 ): Date | null | undefined {
@@ -78,6 +87,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json(updated);
   } catch (error) {
     console.error(error);
+    if (isPrismaP2025(error)) {
+      return NextResponse.json({ error: "Deliverable not found" }, { status: 404 });
+    }
     return NextResponse.json({ error: "Failed to update deliverable" }, { status: 500 });
   }
 }

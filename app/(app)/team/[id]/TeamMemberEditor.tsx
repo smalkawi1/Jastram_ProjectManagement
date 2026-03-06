@@ -8,7 +8,7 @@ export default function TeamMemberEditor({
   memberId,
   initialName,
   initialCapacity,
-  canEdit = true,
+  canEdit = false,
 }: {
   memberId: string;
   initialName: string;
@@ -20,9 +20,11 @@ export default function TeamMemberEditor({
   const [name, setName] = useState(initialName);
   const [capacity, setCapacity] = useState(initialCapacity);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   async function save() {
     setSaving(true);
+    setSaveError("");
     try {
       const res = await fetch(`/api/team/${memberId}`, {
         method: "PATCH",
@@ -35,7 +37,12 @@ export default function TeamMemberEditor({
       if (res.ok) {
         setEditing(false);
         router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Failed to save");
       }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -85,11 +92,15 @@ export default function TeamMemberEditor({
           setEditing(false);
           setName(initialName);
           setCapacity(initialCapacity);
+          setSaveError("");
         }}
         className="p-1.5 rounded text-gray-500 hover:bg-gray-100"
       >
         <XMarkIcon className="w-4 h-4" />
       </button>
+      {saveError && (
+        <p className="text-xs text-red-600 ml-1">{saveError}</p>
+      )}
     </div>
   );
 }

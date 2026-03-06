@@ -17,32 +17,26 @@ function ResetPasswordForm() {
   useEffect(() => {
     const supabase = createClient();
 
-    const checkRecovery = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+    // Listen for PASSWORD_RECOVERY event fired when the email-link hash token is exchanged.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
         setMode("set");
         if (typeof window !== "undefined" && window.location.hash) {
           window.history.replaceState(null, "", window.location.pathname);
         }
-        return;
       }
-      if (typeof window !== "undefined" && window.location.hash) {
-        const params = new URLSearchParams(window.location.hash.slice(1));
-        if (params.get("type") === "recovery") {
-          const { data: { session: s } } = await supabase.auth.getSession();
-          if (s) {
-            setMode("set");
-            window.history.replaceState(null, "", window.location.pathname);
-          } else {
-            setMode("request");
-          }
-          return;
-        }
-      }
-      setMode("request");
-    };
+    });
 
-    checkRecovery();
+    // Also check for an existing active session (e.g. navigating directly while logged in).
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setMode("set");
+      } else {
+        setMode("request");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   async function handleRequestReset(e: React.FormEvent) {

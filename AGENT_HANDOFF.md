@@ -38,7 +38,7 @@
 | Term | Meaning |
 |------|---------|
 | **Prisma** | ORM/toolkit. Schema in `prisma/schema.prisma`; client in `lib/db.ts` imports from `@/app/generated/prisma`. |
-| **Migrate** | `npx prisma migrate deploy` — applies schema changes (tables, columns) to the DB. Run on new/empty DB. |
+| **Migrate** | `npx prisma migrate deploy` — applies schema changes (tables, columns) to the DB. Run **locally** (Vercel does not run migrations). Run on new/empty DB or after adding a migration. |
 | **Seed** | `npx prisma db seed` — runs `prisma/seed.ts` to create Departments + Admin + optional Test user. |
 
 **Build fix:** `package.json` must run `prisma generate` before `next build` (e.g. `"build": "prisma generate && next build"`). Otherwise Vercel fails with "Module not found: '@/app/generated/prisma'".
@@ -92,9 +92,21 @@
 ## 8. Deployment Flow (Code Change → Live)
 
 1. Edit code locally. Test with `npm run dev`.
-2. `git add` → `git commit -m "..."` → `git push`.
-3. Vercel auto-builds and deploys from GitHub.
-4. `.env` is **never** committed. Vercel env vars are set separately in the dashboard.
+2. If the change includes **schema changes** (new Prisma migration): run `npx prisma migrate deploy` locally so the DB your app uses has the new tables/columns. See **Section 8.1** for when that DB is the same as production.
+3. `git add` → `git commit -m "..."` → `git push`.
+4. Vercel auto-builds and deploys from GitHub (`prisma generate` runs in the build; migrations are **not** run on Vercel).
+5. `.env` is **never** committed. Vercel env vars are set separately in the dashboard.
+
+### 8.1 Same database for local and production (typical setup)
+
+**Local** uses `.env` (e.g. `DATABASE_URL`, `DIRECT_URL`). **Production** (Vercel) uses env vars set in the Vercel dashboard. They can point to the same Supabase project or to different ones.
+
+| Setup | Meaning | After running `prisma migrate deploy` locally |
+|-------|--------|----------------------------------------------------------------|
+| **Same Supabase** | Local `.env` and Vercel env vars point to the **same** Supabase project (same DB). | The live site’s database is already updated. Push code; no extra migration step. |
+| **Different Supabase** | Local points to a dev Supabase; Vercel points to a separate prod Supabase. | Only the dev DB was migrated. Run `prisma migrate deploy` against the **production** DB (e.g. temporarily set `DIRECT_URL` to prod in `.env`, run deploy, then revert). |
+
+**How to tell:** Compare `DATABASE_URL` or `DIRECT_URL` in local `.env` with the same variables in Vercel → Project → Settings → Environment Variables. Same host/project ID = same database; different = separate dev/prod databases.
 
 ---
 
@@ -112,4 +124,17 @@
 
 ---
 
-*Last updated from deployment/setup session. Extend this file when new operational learnings are discovered.*
+## 10. Recent Agent Work (Code Review Cleanup — Mar 2026)
+
+**Summary:** Full code review before adding features. Security, data integrity, API robustness, and code quality fixes applied.
+
+**Important for future agents:**
+- **Auth:** All GET API routes now require `getCurrentUser()`; unauthenticated → 401. Route protection lives in `proxy.ts` (Next.js 16 uses `proxy.ts`, not `middleware.ts` — do not create `middleware.ts` or you get "Both middleware and proxy detected").
+- **Shared utilities:** `lib/date.ts` (`parseInputDate`), `lib/constants.ts` (project status maps), `MILESTONE_ORDER` in `lib/milestone-templates.ts`.
+- **Permission gates:** `/projects/new` and `/team/new` are server wrappers that redirect non-EDITOR users.
+- **Issue delete:** `IssueLogSection` has separate `canEdit` and `canDelete` props (delete requires ADMIN).
+- **Full details:** See `PROJECT_PLAN.md` "Full code review cleanup" bullet and `C:\Users\Admin\.cursor\plans\full_code_review_b62a0c84.plan.md` if it exists.
+
+---
+
+*Last updated after code review cleanup. Extend this file when new operational learnings are discovered.*
