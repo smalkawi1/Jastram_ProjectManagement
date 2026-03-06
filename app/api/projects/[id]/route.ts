@@ -48,6 +48,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
               : []) as string[]
         : undefined;
 
+    const imo =
+      body.imoNumber !== undefined
+        ? (typeof body.imoNumber === "string" && body.imoNumber.trim() ? body.imoNumber.trim() : null)
+        : undefined;
+    const diameterMm =
+      body.upperRudderStockDiameterMm !== undefined
+        ? (body.upperRudderStockDiameterMm != null && body.upperRudderStockDiameterMm !== ""
+            ? Number(body.upperRudderStockDiameterMm)
+            : null)
+        : undefined;
+    const diameterValid =
+      diameterMm === null || diameterMm === undefined || (typeof diameterMm === "number" && !Number.isNaN(diameterMm) && diameterMm >= 0);
+
     // Update project + sync SHIPPING deliverable in one transaction
     const [updated] = await prisma.$transaction([
       prisma.project.update({
@@ -63,6 +76,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           generalNotes:        body.generalNotes,
           status:              body.status,
           ...(hullList !== undefined && { hullNumbers: hullList }),
+          ...(imo !== undefined && { imoNumber: imo }),
+          ...(diameterMm !== undefined && { upperRudderStockDiameterMm: diameterValid ? diameterMm : null }),
         },
       }),
       // Sync SHIPPING deliverable when plannedDeliveryDate is explicitly provided

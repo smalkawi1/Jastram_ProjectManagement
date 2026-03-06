@@ -95,14 +95,20 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <p className="text-sm text-gray-500 mt-0.5">
             {project.shipType} · {project.classSociety} · PM: {project.projectManagerName}
           </p>
-          {(project.hullNumbers?.length > 0 || project.salesOrders?.length > 0) && (
+          {(project.hullNumbers?.length > 0 || project.salesOrders?.length > 0 || project.imoNumber || project.upperRudderStockDiameterMm != null) && (
             <p className="text-xs text-gray-500 mt-1">
               {project.hullNumbers?.length > 0 && (
                 <span>Hull(s): {project.hullNumbers.join(", ")}</span>
               )}
-              {project.hullNumbers?.length > 0 && project.salesOrders?.length > 0 && " · "}
+              {project.hullNumbers?.length > 0 && (project.salesOrders?.length > 0 || project.imoNumber || project.upperRudderStockDiameterMm != null) && " · "}
               {project.salesOrders?.length > 0 && (
                 <span>Sales order(s): {project.salesOrders.map((s) => s.salesOrderNumber).join(", ")}</span>
+              )}
+              {project.salesOrders?.length > 0 && (project.imoNumber || project.upperRudderStockDiameterMm != null) && " · "}
+              {project.imoNumber && <span>IMO# {project.imoNumber}</span>}
+              {project.imoNumber && project.upperRudderStockDiameterMm != null && " · "}
+              {project.upperRudderStockDiameterMm != null && (
+                <span>Upper rudder stock diameter: {Number(project.upperRudderStockDiameterMm)} mm</span>
               )}
             </p>
           )}

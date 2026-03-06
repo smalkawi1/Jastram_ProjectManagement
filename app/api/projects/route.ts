@@ -70,6 +70,8 @@ export async function POST(req: NextRequest) {
       generalNotes,
       hullNumbers,
       salesOrderNumbers,
+      imoNumber,
+      upperRudderStockDiameterMm,
     } = body;
 
     if (!projectNumber || !clientName || !shipType || !classSociety || !projectManagerName) {
@@ -94,6 +96,13 @@ export async function POST(req: NextRequest) {
         ? salesOrderNumbers.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
         : [];
 
+    const imo = typeof imoNumber === "string" && imoNumber.trim() ? imoNumber.trim() : null;
+    const diameterMm =
+      upperRudderStockDiameterMm != null && upperRudderStockDiameterMm !== ""
+        ? Number(upperRudderStockDiameterMm)
+        : null;
+    const diameterValid = diameterMm != null && !Number.isNaN(diameterMm) && diameterMm >= 0;
+
     const project = await prisma.project.create({
       data: {
         projectNumber: projectNumber.trim(),
@@ -105,6 +114,8 @@ export async function POST(req: NextRequest) {
         description:   description?.trim() || null,
         generalNotes:  generalNotes?.trim() || null,
         hullNumbers:   hullList,
+        imoNumber:     imo,
+        upperRudderStockDiameterMm: diameterValid ? diameterMm : null,
         milestones: {
           create: MILESTONE_TYPES.map((type) => ({ type })),
         },

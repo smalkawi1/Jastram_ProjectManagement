@@ -24,9 +24,10 @@ alwaysApply: true
 ## When taking over (new agent)
 
 1. Read the plan file (especially Section 6, 6.1, 6.2).
-2. Optionally skim the codebase (app/, lib/, prisma/) to match "Done" vs actual code.
-3. Continue from **Section 6.2 Suggested next steps**: implement the next item(s) in order unless the user asks for something different.
-4. After implementing anything, update the plan as above (mark completed, refresh 6.1 and 6.2).
+2. **Read `AGENT_HANDOFF.md`** in the project root for deployment, Supabase, Vercel, and operational context (env vars, common errors, Prisma/migrate/seed, clean-start steps).
+3. Optionally skim the codebase (app/, lib/, prisma/) to match "Done" vs actual code.
+4. Continue from **Section 6.2 Suggested next steps**: implement the next item(s) in order unless the user asks for something different.
+5. After implementing anything, update the plan as above (mark completed, refresh 6.1 and 6.2).
 
 ## Conventions
 

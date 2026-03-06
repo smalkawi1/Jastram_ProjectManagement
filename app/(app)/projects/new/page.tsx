@@ -23,6 +23,8 @@ export default function NewProjectPage() {
     generalNotes:       "",
     hullNumbers:        "",
     salesOrderNumbers:  "",
+    imoNumber:          "",
+    upperRudderStockDiameterMm: "",
   });
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
@@ -174,6 +176,37 @@ export default function NewProjectPage() {
               value={form.salesOrderNumbers}
               onChange={handleChange}
               placeholder="e.g. SO-12345, SO-12346"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              IMO# <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              name="imoNumber"
+              value={form.imoNumber}
+              onChange={handleChange}
+              placeholder="e.g. 9123456"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Upper Rudder Stock Diameter <span className="text-gray-400 font-normal">(optional, mm)</span>
+            </label>
+            <input
+              name="upperRudderStockDiameterMm"
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.upperRudderStockDiameterMm}
+              onChange={handleChange}
+              placeholder="e.g. 120"
               className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
             />
           </div>

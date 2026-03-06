@@ -122,6 +122,8 @@ model Project {
   description         String?
   generalNotes        String?              // e.g. on hold, waiting for info, blockers
   hullNumbers         String[]             @default([])  // one or multiple hulls (optional)
+  imoNumber           String?              // optional IMO ship identification number
+  upperRudderStockDiameterMm Decimal?      @db.Decimal(8, 2)  // optional, in mm
   // Sales order numbers: one project (JQ + 6 digits) can have multiple → SalesOrder[]
 
   milestones          Milestone[]

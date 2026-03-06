@@ -44,6 +44,8 @@ export default async function ProjectEditPage({
     generalNotes:       project.generalNotes ?? "",
     status:             project.status,
     hullNumbers:        (project.hullNumbers ?? []).join(", "),
+    imoNumber:          project.imoNumber ?? "",
+    upperRudderStockDiameterMm: project.upperRudderStockDiameterMm != null ? String(project.upperRudderStockDiameterMm) : "",
   };
 
   return (

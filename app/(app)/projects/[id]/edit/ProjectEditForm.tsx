@@ -23,6 +23,8 @@ type Initial = {
   generalNotes: string;
   status: string;
   hullNumbers: string;
+  imoNumber: string;
+  upperRudderStockDiameterMm: string;
 };
 
 export default function ProjectEditForm({
@@ -62,6 +64,8 @@ export default function ProjectEditForm({
           ...form,
           plannedDeliveryDate: form.plannedDeliveryDate || null,
           hullNumbers: hullList,
+          imoNumber: form.imoNumber || null,
+          upperRudderStockDiameterMm: form.upperRudderStockDiameterMm.trim() ? form.upperRudderStockDiameterMm : null,
         }),
       });
       if (!res.ok) {
@@ -167,6 +171,32 @@ export default function ProjectEditForm({
           placeholder="e.g. H001, H002"
           className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">IMO# (optional)</label>
+          <input
+            name="imoNumber"
+            value={form.imoNumber}
+            onChange={handleChange}
+            placeholder="e.g. 9123456"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Upper Rudder Stock Diameter (optional, mm)</label>
+          <input
+            name="upperRudderStockDiameterMm"
+            type="number"
+            min={0}
+            step={0.01}
+            value={form.upperRudderStockDiameterMm}
+            onChange={handleChange}
+            placeholder="e.g. 120"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#2453a0] focus:border-transparent"
+          />
+        </div>
       </div>
 
       <div>
